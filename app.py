@@ -21,13 +21,18 @@ def format_seconds(seconds: float) -> str:
 
 def get_best_transcript(video_id: str) -> Optional[list[dict]]:
     try:
+        # 사용 가능한 자막 목록 확인
+        transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
+        
         # 한국어 자막 시도
         try:
-            return YouTubeTranscriptApi.get_transcript(video_id, languages=['ko'])
+            transcript = transcript_list.find_transcript(['ko'])
+            return transcript.fetch()
         except:
             # 영어 자막 시도
             try:
-                return YouTubeTranscriptApi.get_transcript(video_id, languages=['en'])
+                transcript = transcript_list.find_transcript(['en'])
+                return transcript.fetch()
             except:
                 return None
     except:
