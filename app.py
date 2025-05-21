@@ -1,11 +1,16 @@
 import streamlit as st
-from youtube_transcript_api import YouTubeTranscriptApi, TranscriptsDisabled, NoTranscriptFound
+from googleapiclient.discovery import build
 import google.generativeai as genai
 import re
 from typing import Optional
 
-# Gemini API 키 설정 (Streamlit Cloud에서는 secrets.toml 이용)
-genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
+# API 키 설정
+YOUTUBE_API_KEY = st.secrets["YOUTUBE_API_KEY"]
+GOOGLE_API_KEY = st.secrets["GOOGLE_API_KEY"]
+
+# API 클라이언트 초기화
+youtube = build('youtube', 'v3', developerKey=YOUTUBE_API_KEY)
+genai.configure(api_key=GOOGLE_API_KEY)
 
 # -----------------------------
 # Helper Functions
@@ -22,29 +27,72 @@ def format_seconds(seconds: float) -> str:
 def get_best_transcript(video_id: str) -> Optional[list[dict]]:
     try:
         st.write("자막 목록을 가져오는 중...")
-        transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
-        st.write("사용 가능한 자막:", [t.language_code for t in transcript_list])
+        captions = youtube.captions().list(
+            part="snippet",
+            videoId=video_id
+        ).execute()
         
-        # 한국어 자막 시도
-        try:
-            st.write("한국어 자막을 찾는 중...")
-            transcript = transcript_list.find_transcript(['ko'])
-            st.write("한국어 자막을 가져오는 중...")
-            return transcript.fetch()
-        except Exception as e:
-            st.write(f"한국어 자막 실패: {str(e)}")
-            # 영어 자막 시도
-            try:
-                st.write("영어 자막을 찾는 중...")
-                transcript = transcript_list.find_transcript(['en'])
+        if not captions.get('items'):
+            st.write("자막을 찾을 수 없습니다.")
+            return None
+            
+        st.write("사용 가능한 자막:", [item['snippet']['language'] for item in captions['items']])
+        
+        # 한국어 자막 찾기
+        for caption in captions['items']:
+            if caption['snippet']['language'] == 'ko':
+                st.write("한국어 자막을 가져오는 중...")
+                transcript = youtube.captions().download(
+                    id=caption['id'],
+                    tfmt='srt'
+                ).execute()
+                return parse_srt(transcript)
+                
+        # 영어 자막 찾기
+        for caption in captions['items']:
+            if caption['snippet']['language'] in ['en', 'en-US']:
                 st.write("영어 자막을 가져오는 중...")
-                return transcript.fetch()
-            except Exception as e:
-                st.write(f"영어 자막 실패: {str(e)}")
-                return None
-    except Exception as e:
-        st.write(f"자막 목록 가져오기 실패: {str(e)}")
+                transcript = youtube.captions().download(
+                    id=caption['id'],
+                    tfmt='srt'
+                ).execute()
+                return parse_srt(transcript)
+                
+        st.write("지원하는 언어의 자막을 찾을 수 없습니다.")
         return None
+        
+    except Exception as e:
+        st.write(f"자막을 가져오는데 실패했습니다: {str(e)}")
+        return None
+
+def parse_srt(srt_content: str) -> list[dict]:
+    """SRT 형식의 자막을 파싱하여 리스트로 변환"""
+    entries = []
+    current_entry = {}
+    
+    for line in srt_content.split('\n'):
+        line = line.strip()
+        if not line:
+            if current_entry:
+                entries.append(current_entry)
+                current_entry = {}
+            continue
+            
+        if '-->' in line:
+            start_time = line.split('-->')[0].strip()
+            current_entry['start'] = srt_time_to_seconds(start_time)
+        elif not line.isdigit() and not current_entry.get('text'):
+            current_entry['text'] = line
+            
+    if current_entry:
+        entries.append(current_entry)
+        
+    return entries
+
+def srt_time_to_seconds(srt_time: str) -> float:
+    """SRT 시간 형식(HH:MM:SS,mmm)을 초 단위로 변환"""
+    hours, minutes, seconds = srt_time.replace(',', '.').split(':')
+    return float(hours) * 3600 + float(minutes) * 60 + float(seconds)
 
 def format_transcript_with_timestamps(transcript: list[dict]) -> str:
     formatted = ""
