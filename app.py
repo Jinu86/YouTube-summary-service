@@ -66,9 +66,7 @@ def build_prompt(transcript: str, mode: str) -> str:
 - 00:00~02:30: 내용 요약
 
 자막:
-"""
 {transcript}
-"""
 """
     elif mode == "키워드 요약":
         return f"""
@@ -79,9 +77,7 @@ def build_prompt(transcript: str, mode: str) -> str:
 - 키워드: 설명
 
 자막:
-"""
 {transcript}
-"""
 """
     else:
         return transcript
