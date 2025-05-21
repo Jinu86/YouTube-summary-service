@@ -27,43 +27,30 @@ def format_seconds(seconds: float) -> str:
 
 def get_best_transcript(video_id: str) -> Optional[list[dict]]:
     try:
-        # 프록시 설정 (여러 프록시 서버 시도)
-        proxy_list = [
-            {'http': 'http://103.149.162.195:80', 'https': 'http://103.149.162.195:80'},
-            {'http': 'http://51.159.115.233:3128', 'https': 'http://51.159.115.233:3128'},
-            {'http': 'http://20.111.54.16:80', 'https': 'http://20.111.54.16:80'},
-            None  # 프록시 없이 시도
-        ]
+        st.write("1. 자막 목록을 확인하는 중...")
+        transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
+        available_langs = [t.language_code for t in transcript_list]
+        st.write(f"2. 사용 가능한 자막: {available_langs}")
         
-        for proxy in proxy_list:
-            try:
-                # 자막 목록 확인
-                transcript_list = YouTubeTranscriptApi.list_transcripts(video_id, proxies=proxy)
-                available_langs = [t.language_code for t in transcript_list]
-                st.write("사용 가능한 자막:", available_langs)
-                
-                # 영어 자막이 있으면 직접 가져오기
-                if 'en' in available_langs:
-                    st.write("영어 자막을 가져오는 중...")
-                    return YouTubeTranscriptApi.get_transcript(video_id, languages=['en'], proxies=proxy)
-                    
-                # 한국어 자막이 있으면 가져오기
-                if 'ko' in available_langs:
-                    st.write("한국어 자막을 가져오는 중...")
-                    return YouTubeTranscriptApi.get_transcript(video_id, languages=['ko'], proxies=proxy)
-                    
-                st.write("지원하는 언어의 자막을 찾을 수 없습니다.")
-                return None
-                
-            except Exception as e:
-                st.write(f"현재 프록시로 시도 실패: {str(e)}")
-                continue
-                
-        st.write("모든 프록시 서버가 실패했습니다.")
+        # 영어 자막이 있으면 직접 가져오기
+        if 'en' in available_langs:
+            st.write("3. 영어 자막을 가져오는 중...")
+            transcript = YouTubeTranscriptApi.get_transcript(video_id, languages=['en'])
+            st.write("4. 영어 자막 가져오기 완료!")
+            return transcript
+            
+        # 한국어 자막이 있으면 가져오기
+        if 'ko' in available_langs:
+            st.write("3. 한국어 자막을 가져오는 중...")
+            transcript = YouTubeTranscriptApi.get_transcript(video_id, languages=['ko'])
+            st.write("4. 한국어 자막 가져오기 완료!")
+            return transcript
+            
+        st.write("3. 지원하는 언어의 자막을 찾을 수 없습니다.")
         return None
         
     except Exception as e:
-        st.write(f"자막을 가져오는데 실패했습니다: {str(e)}")
+        st.write(f"오류 발생: {str(e)}")
         return None
 
 def parse_srt(srt_content: str) -> list[dict]:
@@ -155,14 +142,22 @@ def summarize_with_gemini(prompt: str) -> str:
 def summarize_in_chunks(transcript: str, mode: str, status_container) -> str:
     chunks = chunk_text(transcript)
     summaries = []
+    
+    status_container.info(f"[{mode}] 자막을 {len(chunks)}개 구간으로 나누었습니다.")
+    
     for i, chunk in enumerate(chunks):
         status_container.info(f"[{mode}] 자막을 분석하는 중... ({i+1}/{len(chunks)})")
         prompt = build_prompt(chunk, mode)
         summary = summarize_with_gemini(prompt)
         summaries.append(summary)
+        status_container.info(f"[{mode}] {i+1}번째 구간 분석 완료!")
+        
     status_container.info(f"[{mode}] 최종 요약을 생성하는 중...")
     final_prompt = f"다음은 영상 요약 조각들입니다. 이들을 하나의 요약으로 통합해줘.\n\n{'\n'.join(summaries)}"
-    return summarize_with_gemini(final_prompt)
+    final_summary = summarize_with_gemini(final_prompt)
+    status_container.info(f"[{mode}] 최종 요약 생성 완료!")
+    
+    return final_summary
 
 # -----------------------------
 # Streamlit UI
