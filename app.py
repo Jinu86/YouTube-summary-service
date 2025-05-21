@@ -28,59 +28,48 @@ def format_seconds(seconds: float) -> str:
 def get_best_transcript(video_id: str) -> Optional[list[dict]]:
     try:
         st.write("1. 영상 정보를 가져오는 중...")
+        ydl_opts = {
+            'writesubtitles': True,
+            'writeautomaticsub': True,
+            'subtitleslangs': ['en', 'ko'],
+            'skip_download': True,
+            'quiet': True,
+            'cookiesfrombrowser': ('chrome',),  # Chrome 쿠키 사용
+            'cookiefile': 'cookies.txt',  # 쿠키 파일 사용
+            'nocheckcertificate': True,  # 인증서 검증 건너뛰기
+            'ignoreerrors': True,  # 오류 무시
+            'no_warnings': True,  # 경고 메시지 숨기기
+            'extract_flat': True,  # 플랫 모드로 추출
+            'force_generic_extractor': True  # 일반 추출기 사용
+        }
         
-        # 영상 정보 가져오기
-        video_response = youtube.videos().list(
-            part='snippet',
-            id=video_id
-        ).execute()
-        
-        if not video_response['items']:
-            st.write("영상을 찾을 수 없습니다.")
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            st.write("2. 자막 목록을 확인하는 중...")
+            info = ydl.extract_info(f"https://www.youtube.com/watch?v={video_id}", download=False)
+            
+            if 'subtitles' in info:
+                available_langs = list(info['subtitles'].keys())
+                st.write(f"3. 사용 가능한 자막: {available_langs}")
+                
+                # 영어 자막이 있으면 가져오기
+                if 'en' in available_langs:
+                    st.write("4. 영어 자막을 가져오는 중...")
+                    subtitle_url = info['subtitles']['en'][0]['url']
+                    response = ydl.urlopen(subtitle_url).read().decode('utf-8')
+                    st.write("5. 영어 자막 가져오기 완료!")
+                    return parse_srt(response)
+                    
+                # 한국어 자막이 있으면 가져오기
+                if 'ko' in available_langs:
+                    st.write("4. 한국어 자막을 가져오는 중...")
+                    subtitle_url = info['subtitles']['ko'][0]['url']
+                    response = ydl.urlopen(subtitle_url).read().decode('utf-8')
+                    st.write("5. 한국어 자막 가져오기 완료!")
+                    return parse_srt(response)
+                    
+            st.write("4. 지원하는 언어의 자막을 찾을 수 없습니다.")
             return None
             
-        st.write("2. 자막 목록을 확인하는 중...")
-        
-        # 자막 목록 가져오기
-        captions_response = youtube.captions().list(
-            part='snippet',
-            videoId=video_id
-        ).execute()
-        
-        available_langs = [item['snippet']['language'] for item in captions_response.get('items', [])]
-        st.write(f"3. 사용 가능한 자막: {available_langs}")
-        
-        # 영어 자막이 있으면 가져오기
-        if 'en' in available_langs:
-            st.write("4. 영어 자막을 가져오는 중...")
-            caption_id = next(item['id'] for item in captions_response['items'] 
-                            if item['snippet']['language'] == 'en')
-            
-            caption_response = youtube.captions().download(
-                id=caption_id,
-                tfmt='srt'
-            ).execute()
-            
-            st.write("5. 영어 자막 가져오기 완료!")
-            return parse_srt(caption_response.decode('utf-8'))
-            
-        # 한국어 자막이 있으면 가져오기
-        if 'ko' in available_langs:
-            st.write("4. 한국어 자막을 가져오는 중...")
-            caption_id = next(item['id'] for item in captions_response['items'] 
-                            if item['snippet']['language'] == 'ko')
-            
-            caption_response = youtube.captions().download(
-                id=caption_id,
-                tfmt='srt'
-            ).execute()
-            
-            st.write("5. 한국어 자막 가져오기 완료!")
-            return parse_srt(caption_response.decode('utf-8'))
-            
-        st.write("4. 지원하는 언어의 자막을 찾을 수 없습니다.")
-        return None
-        
     except Exception as e:
         st.write(f"오류 발생: {str(e)}")
         return None
