@@ -27,28 +27,39 @@ def format_seconds(seconds: float) -> str:
 
 def get_best_transcript(video_id: str) -> Optional[list[dict]]:
     try:
-        # 프록시 설정
-        proxies = {
-            'http': 'http://51.159.115.233:3128',  # 무료 프록시 서버
-            'https': 'http://51.159.115.233:3128'
-        }
+        # 프록시 설정 (여러 프록시 서버 시도)
+        proxy_list = [
+            {'http': 'http://103.149.162.195:80', 'https': 'http://103.149.162.195:80'},
+            {'http': 'http://51.159.115.233:3128', 'https': 'http://51.159.115.233:3128'},
+            {'http': 'http://20.111.54.16:80', 'https': 'http://20.111.54.16:80'},
+            None  # 프록시 없이 시도
+        ]
         
-        # 자막 목록 확인
-        transcript_list = YouTubeTranscriptApi.list_transcripts(video_id, proxies=proxies)
-        available_langs = [t.language_code for t in transcript_list]
-        st.write("사용 가능한 자막:", available_langs)
-        
-        # 영어 자막이 있으면 직접 가져오기
-        if 'en' in available_langs:
-            st.write("영어 자막을 가져오는 중...")
-            return YouTubeTranscriptApi.get_transcript(video_id, languages=['en'], proxies=proxies)
-            
-        # 한국어 자막이 있으면 가져오기
-        if 'ko' in available_langs:
-            st.write("한국어 자막을 가져오는 중...")
-            return YouTubeTranscriptApi.get_transcript(video_id, languages=['ko'], proxies=proxies)
-            
-        st.write("지원하는 언어의 자막을 찾을 수 없습니다.")
+        for proxy in proxy_list:
+            try:
+                # 자막 목록 확인
+                transcript_list = YouTubeTranscriptApi.list_transcripts(video_id, proxies=proxy)
+                available_langs = [t.language_code for t in transcript_list]
+                st.write("사용 가능한 자막:", available_langs)
+                
+                # 영어 자막이 있으면 직접 가져오기
+                if 'en' in available_langs:
+                    st.write("영어 자막을 가져오는 중...")
+                    return YouTubeTranscriptApi.get_transcript(video_id, languages=['en'], proxies=proxy)
+                    
+                # 한국어 자막이 있으면 가져오기
+                if 'ko' in available_langs:
+                    st.write("한국어 자막을 가져오는 중...")
+                    return YouTubeTranscriptApi.get_transcript(video_id, languages=['ko'], proxies=proxy)
+                    
+                st.write("지원하는 언어의 자막을 찾을 수 없습니다.")
+                return None
+                
+            except Exception as e:
+                st.write(f"현재 프록시로 시도 실패: {str(e)}")
+                continue
+                
+        st.write("모든 프록시 서버가 실패했습니다.")
         return None
         
     except Exception as e:
