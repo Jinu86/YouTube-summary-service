@@ -27,20 +27,26 @@ def format_seconds(seconds: float) -> str:
 
 def get_best_transcript(video_id: str) -> Optional[list[dict]]:
     try:
+        # 프록시 설정
+        proxies = {
+            'http': 'http://51.159.115.233:3128',  # 무료 프록시 서버
+            'https': 'http://51.159.115.233:3128'
+        }
+        
         # 자막 목록 확인
-        transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
+        transcript_list = YouTubeTranscriptApi.list_transcripts(video_id, proxies=proxies)
         available_langs = [t.language_code for t in transcript_list]
         st.write("사용 가능한 자막:", available_langs)
         
         # 영어 자막이 있으면 직접 가져오기
         if 'en' in available_langs:
             st.write("영어 자막을 가져오는 중...")
-            return YouTubeTranscriptApi.get_transcript(video_id, languages=['en'])
+            return YouTubeTranscriptApi.get_transcript(video_id, languages=['en'], proxies=proxies)
             
         # 한국어 자막이 있으면 가져오기
         if 'ko' in available_langs:
             st.write("한국어 자막을 가져오는 중...")
-            return YouTubeTranscriptApi.get_transcript(video_id, languages=['ko'])
+            return YouTubeTranscriptApi.get_transcript(video_id, languages=['ko'], proxies=proxies)
             
         st.write("지원하는 언어의 자막을 찾을 수 없습니다.")
         return None
