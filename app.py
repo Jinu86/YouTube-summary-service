@@ -91,11 +91,11 @@ def summarize_in_chunks(transcript: str, mode: str, status_container) -> str:
     chunks = chunk_text(transcript)
     summaries = []
     for i, chunk in enumerate(chunks):
-        status_container.info(f"자막을 분석하는 중... ({i+1}/{len(chunks)})")
+        status_container.info(f"[{mode}] 자막을 분석하는 중... ({i+1}/{len(chunks)})")
         prompt = build_prompt(chunk, mode)
         summary = summarize_with_gemini(prompt)
         summaries.append(summary)
-    status_container.info("최종 요약을 생성하는 중...")
+    status_container.info(f"[{mode}] 최종 요약을 생성하는 중...")
     final_prompt = f"다음은 영상 요약 조각들입니다. 이들을 하나의 요약으로 통합해줘.\n\n{'\n'.join(summaries)}"
     return summarize_with_gemini(final_prompt)
 
@@ -108,9 +108,12 @@ st.title("🎥 유튜브 자막 요약기")
 st.write("유튜브 영상 링크를 입력하고 요약 방식을 선택하면, 자막을 한국어로 요약해드립니다.")
 
 url: str = st.text_input("유튜브 링크를 입력하세요:")
-mode: str = st.selectbox("요약 방식을 선택하세요", ["핵심 요약", "타임라인 요약", "키워드 요약"])
+selected_modes: list[str] = st.multiselect(
+    "원하는 요약 방식을 모두 선택하세요",
+    ["핵심 요약", "타임라인 요약", "키워드 요약"]
+)
 
-if st.button("요약 시작") and url:
+if st.button("요약 시작") and url and selected_modes:
     status = st.empty()
     status.info("자막을 가져오는 중...")
 
@@ -125,16 +128,20 @@ if st.button("요약 시작") and url:
             status.empty()
             st.error("이 영상은 자막이 없어 요약할 수 없습니다.")
         else:
-            formatted_transcript: str = format_transcript_with_timestamps(transcript_data) if mode == "타임라인 요약" else " ".join([entry['text'] for entry in transcript_data])
+            summaries_output = {}
+            for mode in selected_modes:
+                formatted_transcript: str = format_transcript_with_timestamps(transcript_data) if mode == "타임라인 요약" else " ".join([entry['text'] for entry in transcript_data])
+                try:
+                    summary: str = summarize_in_chunks(formatted_transcript, mode, status)
+                    summaries_output[mode] = summary
+                except Exception as e:
+                    status.empty()
+                    st.error(f"[{mode}] 요약 생성에 실패했습니다. 다시 시도해주세요.")
+                    st.exception(e)
 
-            try:
-                summary: str = summarize_in_chunks(formatted_transcript, mode, status)
-                status.empty()
-                st.success("요약 완료!")
-                st.subheader("📌 요약 결과")
+            status.empty()
+            st.success("요약 완료!")
+            for mode, summary in summaries_output.items():
+                st.subheader(f"📌 {mode}")
                 st.write(summary)
-                st.download_button("📄 요약 결과 다운로드", summary, file_name="summary.txt")
-            except Exception as e:
-                status.empty()
-                st.error("요약 생성에 실패했습니다. 다시 시도해주세요.")
-                st.exception(e)
+                st.download_button(f"📄 {mode} 다운로드", summary, file_name=f"{mode}.txt")
