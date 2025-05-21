@@ -21,14 +21,16 @@ def format_seconds(seconds: float) -> str:
 
 def get_best_transcript(video_id: str) -> Optional[list[dict]]:
     try:
-        transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
-        # 한 번의 API 호출로 자막 가져오기
-        if transcript_list.find_transcript(['ko']):
-            return transcript_list.find_transcript(['ko']).fetch()
-        elif transcript_list.find_transcript(['en', 'en-US']):
-            return transcript_list.find_transcript(['en', 'en-US']).fetch()
-        return None
-    except (TranscriptsDisabled, NoTranscriptFound):
+        # 직접 자막 가져오기 시도
+        try:
+            return YouTubeTranscriptApi.get_transcript(video_id, languages=['ko'])
+        except:
+            try:
+                return YouTubeTranscriptApi.get_transcript(video_id, languages=['en'])
+            except:
+                return None
+    except Exception as e:
+        st.error("자막을 가져오는데 실패했습니다.")
         return None
 
 def format_transcript_with_timestamps(transcript: list[dict]) -> str:
