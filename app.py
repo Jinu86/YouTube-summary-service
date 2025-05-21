@@ -5,6 +5,7 @@ from typing import Optional, List, Dict
 from dataclasses import dataclass
 from enum import Enum
 import logging
+from youtube_transcript_api import YouTubeTranscriptApi
 
 # 로깅 설정
 logging.basicConfig(level=logging.INFO)
