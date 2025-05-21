@@ -57,7 +57,7 @@ class TranscriptFetcher:
         try:
             self.status.info(f"3. {lang} 자막을 가져오는 중...")
             transcript = transcript_list.find_transcript([lang])
-            self.status.info(f"4. {lang} 자막 가져오기 완료!")
+            self.status.empty()  # 자막 가져오기 완료 메시지 제거
             return [TranscriptEntry(start=entry['start'], text=entry['text']) 
                    for entry in transcript.fetch()]
         except Exception as e:
