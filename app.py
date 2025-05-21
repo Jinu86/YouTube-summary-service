@@ -3,6 +3,7 @@ from googleapiclient.discovery import build
 import google.generativeai as genai
 import re
 from typing import Optional
+from youtube_transcript_api import YouTubeTranscriptApi
 
 # API 키 설정
 YOUTUBE_API_KEY = st.secrets["YOUTUBE_API_KEY"]
@@ -26,38 +27,21 @@ def format_seconds(seconds: float) -> str:
 
 def get_best_transcript(video_id: str) -> Optional[list[dict]]:
     try:
-        st.write("자막 목록을 가져오는 중...")
-        captions = youtube.captions().list(
-            part="snippet",
-            videoId=video_id
-        ).execute()
+        # 자막 목록 확인
+        transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
+        available_langs = [t.language_code for t in transcript_list]
+        st.write("사용 가능한 자막:", available_langs)
         
-        if not captions.get('items'):
-            st.write("자막을 찾을 수 없습니다.")
-            return None
+        # 영어 자막이 있으면 직접 가져오기
+        if 'en' in available_langs:
+            st.write("영어 자막을 가져오는 중...")
+            return YouTubeTranscriptApi.get_transcript(video_id, languages=['en'])
             
-        st.write("사용 가능한 자막:", [item['snippet']['language'] for item in captions['items']])
-        
-        # 한국어 자막 찾기
-        for caption in captions['items']:
-            if caption['snippet']['language'] == 'ko':
-                st.write("한국어 자막을 가져오는 중...")
-                transcript = youtube.captions().download(
-                    id=caption['id'],
-                    tfmt='srt'
-                ).execute()
-                return parse_srt(transcript)
-                
-        # 영어 자막 찾기
-        for caption in captions['items']:
-            if caption['snippet']['language'] in ['en', 'en-US']:
-                st.write("영어 자막을 가져오는 중...")
-                transcript = youtube.captions().download(
-                    id=caption['id'],
-                    tfmt='srt'
-                ).execute()
-                return parse_srt(transcript)
-                
+        # 한국어 자막이 있으면 가져오기
+        if 'ko' in available_langs:
+            st.write("한국어 자막을 가져오는 중...")
+            return YouTubeTranscriptApi.get_transcript(video_id, languages=['ko'])
+            
         st.write("지원하는 언어의 자막을 찾을 수 없습니다.")
         return None
         
