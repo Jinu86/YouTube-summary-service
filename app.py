@@ -4,6 +4,7 @@ import google.generativeai as genai
 import re
 from typing import Optional
 from youtube_transcript_api import YouTubeTranscriptApi
+from pytube import YouTube
 
 # API 키 설정
 YOUTUBE_API_KEY = st.secrets["YOUTUBE_API_KEY"]
@@ -27,26 +28,31 @@ def format_seconds(seconds: float) -> str:
 
 def get_best_transcript(video_id: str) -> Optional[list[dict]]:
     try:
-        st.write("1. 자막 목록을 확인하는 중...")
-        transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
-        available_langs = [t.language_code for t in transcript_list]
-        st.write(f"2. 사용 가능한 자막: {available_langs}")
+        st.write("1. 영상 정보를 가져오는 중...")
+        yt = YouTube(f"https://www.youtube.com/watch?v={video_id}")
         
-        # 영어 자막이 있으면 직접 가져오기
+        st.write("2. 자막 목록을 확인하는 중...")
+        captions = yt.captions
+        available_langs = list(captions.keys())
+        st.write(f"3. 사용 가능한 자막: {available_langs}")
+        
+        # 영어 자막이 있으면 가져오기
         if 'en' in available_langs:
-            st.write("3. 영어 자막을 가져오는 중...")
-            transcript = YouTubeTranscriptApi.get_transcript(video_id, languages=['en'])
-            st.write("4. 영어 자막 가져오기 완료!")
-            return transcript
+            st.write("4. 영어 자막을 가져오는 중...")
+            caption = captions['en']
+            srt_captions = caption.generate_srt_captions()
+            st.write("5. 영어 자막 가져오기 완료!")
+            return parse_srt(srt_captions)
             
         # 한국어 자막이 있으면 가져오기
         if 'ko' in available_langs:
-            st.write("3. 한국어 자막을 가져오는 중...")
-            transcript = YouTubeTranscriptApi.get_transcript(video_id, languages=['ko'])
-            st.write("4. 한국어 자막 가져오기 완료!")
-            return transcript
+            st.write("4. 한국어 자막을 가져오는 중...")
+            caption = captions['ko']
+            srt_captions = caption.generate_srt_captions()
+            st.write("5. 한국어 자막 가져오기 완료!")
+            return parse_srt(srt_captions)
             
-        st.write("3. 지원하는 언어의 자막을 찾을 수 없습니다.")
+        st.write("4. 지원하는 언어의 자막을 찾을 수 없습니다.")
         return None
         
     except Exception as e:
